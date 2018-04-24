@@ -1,0 +1,73 @@
+library(tidyverse)
+library(readxl)
+library(gridExtra)
+library(grid)
+options(scipen = 999)
+
+my_data <- read_excel("taxstats2014individual14occupationgendertaxableincome.xlsx", 
+                     sheet = 3, col_names = c("occupation", "gender", "number", "avg_income"),
+                     col_types = c("text", "text", "numeric", "numeric"), skip = 1)
+
+my_data <- my_data %>%
+  filter(row_number() > 1) %>%
+  # I tried to bypass this by using "skip = 2" above, but that didn't work.
+  separate(occupation, into = c("code", "job"), sep = 6)
+
+# separate out top 10 female jobs
+top_10_female <- my_data %>%
+  filter(gender == "Female") %>%
+  arrange(desc(avg_income)) %>%
+  filter(row_number() > 1) %>% # removes the "Not listed or unknown" value
+  mutate(job = reorder(job, avg_income)) %>%
+  top_n(10)
+
+# separate out top 10 male jobs
+top_10_male <- my_data %>%
+  filter(gender == "Male") %>%
+  arrange(desc(avg_income)) %>%
+  filter(row_number() > 1) %>% # removes the "Not listed or unknown" value
+  mutate(job = reorder(job, avg_income)) %>%
+  top_n(10)
+
+# collect all male jobs
+all_male <- my_data %>%
+  filter(gender == "Male")
+
+# collect all female jobs
+all_female <- my_data %>%
+  filter(gender == "Female")
+
+# plot female jobs with male counterparts
+plot1 <- top_10_female %>%
+  left_join(all_male, by = "job") %>%
+  arrange(desc(avg_income.x)) %>%
+  mutate(job = reorder(job, avg_income.x)) %>%
+  ggplot() +
+  geom_point(aes(x = job, y = avg_income.x), color = "tomato3", size = 3) +
+  geom_point(aes(x = job, y = avg_income.y), color = "blue", size = 3) +
+  ylab("average income") +
+  xlab(NULL) +
+  scale_y_continuous(limits = c(150000, 600000)) +
+  coord_flip() +
+  theme(legend.position = "none") +
+  ggtitle("10 top-paying jobs for women (red)", subtitle = "with matching jobs for men (blue)")
+
+# plot male jobs with female counterparts
+plot2 <- top_10_male %>%
+  left_join(all_female, by = "job") %>%
+  arrange(desc(avg_income.x)) %>%
+  mutate(job = reorder(job, avg_income.x)) %>%
+  ggplot() +
+  geom_point(aes(x = job, y = avg_income.x), color = "tomato3", size = 3) +
+  geom_point(aes(x = job, y = avg_income.y), color = "blue", size = 3) +
+  ylab("average income") +
+  xlab(NULL) +
+  scale_y_continuous(limits = c(150000, 600000)) +
+  coord_flip() +
+  theme(legend.position = "none") +
+  ggtitle("10 top-paying jobs for men (red)", subtitle = "with matching jobs for women (blue)")
+  
+# show plots together on grid
+grid.arrange(plot1, plot2)
+grid.text(unit(0.1,"npc"),0.025,label = "plots by @landonlehman")
+grid.gedit("GRID.text", gp=gpar(fontsize=7))
